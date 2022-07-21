@@ -147,12 +147,11 @@ impl TaskManager {
         }
 
         inner.cur_app = task_id;
+        inner.apps[task_id].status = TaskStatus::Running;
         if inner.apps[task_id].time == 0 {
             inner.apps[task_id].time = get_time_us();
         }
-        inner.apps[task_id].status = TaskStatus::Running;
         drop(inner);
-        info!("run app by id, {}", task_id);
         self.run_app_by_id(task_id);
         panic!("Unreachable in run_next_app");
     }

@@ -65,7 +65,7 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     unsafe {
         (*ti).status = get_task_manager().get_task_status();
-        (*ti).time = get_task_manager().get_task_time();
+        (*ti).time = get_task_manager().get_task_time() / 1000;
         get_task_manager().get_syscall_count(&mut (*ti).syscall_times);
     }
     0
