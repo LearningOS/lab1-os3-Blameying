@@ -61,16 +61,19 @@ pub fn trap_handler(ctx: &mut TrapContext) -> &mut TrapContext {
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             ctx.sepc += 4;
-            ctx.regs[10] =
-                syscall(ctx.regs[17], [ctx.regs[10], ctx.regs[11], ctx.regs[12]]) as usize;
+            ctx.regs[10] = syscall(
+                ctx.regs[17],
+                [ctx.regs[10], ctx.regs[11], ctx.regs[12]],
+                ctx as *const _ as usize,
+            ) as usize;
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
             error!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, ctx.sepc);
-            get_task_manager().run_next_app();
+            get_task_manager().exit_and_run_next_app();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             error!("[kernel] IllegalInstruction in application, core dumped.");
-            get_task_manager().run_next_app();
+            get_task_manager().exit_and_run_next_app();
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             set_next_trigger();

@@ -38,14 +38,14 @@ fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
 
 pub fn sys_exit(exit_code: i32) -> ! {
     info!("[kernel] Application exited with code {}", exit_code);
-    get_task_manager().run_next_app();
+    get_task_manager().exit_and_run_next_app();
     panic!("Unreachable in sys_exit!");
 }
 
 /// current task gives up resources for other tasks
-pub fn sys_yield() -> isize {
+pub fn sys_yield(ctx: usize) -> isize {
     info!("[kernel] Application Yield");
-    get_task_manager().run_next_app();
+    get_task_manager().suspend_and_run_next_app(ctx);
     0
 }
 
@@ -66,11 +66,12 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     0
 }
 
-pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+pub fn syscall(syscall_id: usize, args: [usize; 3], ctx: usize) -> isize {
+    info!("SYSCALL: {}", syscall_id);
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),
-        SYSCALL_YIELD => sys_yield(),
+        SYSCALL_YIELD => sys_yield(ctx),
         SYSCALL_GET_TIME => sys_get_time(args[0] as *mut TimeVal, args[1]),
         SYSCALL_TASK_INFO => sys_task_info(args[0] as *mut TaskInfo),
         _ => panic!("Unsupported syscall_id: {}", syscall_id),

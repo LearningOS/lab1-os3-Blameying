@@ -1,9 +1,10 @@
 use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use alloc::vec::Vec;
 use lazy_static::lazy_static;
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum TaskStatus {
     UInited,
     Ready,
@@ -36,7 +37,7 @@ pub struct TaskManager {
 impl TaskManager {
     pub fn init(&self) {
         let mut inner = self.inner.exclusive_access();
-        for id in 0..inner.apps.len() {
+        for id in 0..self.app_num {
             inner.apps[id].status = TaskStatus::Ready;
         }
         drop(inner)
@@ -54,7 +55,6 @@ impl TaskManager {
     }
 
     pub fn run_app_by_id(&self, id: usize) {
-        info!("running id: {}", id);
         if id >= self.app_num {
             panic!("All applications was finished!");
         }
@@ -66,7 +66,6 @@ impl TaskManager {
         extern "C" {
             fn __restore(cx_addr: usize);
         }
-        info!("restore !");
         unsafe {
             __restore(context);
         }
@@ -83,44 +82,46 @@ impl TaskManager {
         self.run_next_app();
     }
 
+    pub fn exit_and_run_next_app(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let index = inner.cur_app;
+        inner.apps[index].status = TaskStatus::Exit;
+        drop(inner);
+        self.run_next_app();
+    }
+
     pub fn run_next_app(&self) {
         let mut inner = self.inner.exclusive_access();
         let index = inner.cur_app;
-        let mut task_id: Option<usize> = None;
+        let mut task_id: usize = self.app_num;
 
-        if index == 0 && (inner.apps[index].status == TaskStatus::Ready) {
-            task_id = Some(index);
-        } else {
-            for item in inner.apps[index..].into_iter().enumerate() {
-                let (id, _) = item;
-                if inner.apps[id].status == TaskStatus::Ready {
-                    task_id = Some(id);
-                    break;
-                }
-            }
-            if task_id == None {
-                for item in inner.apps[..index].into_iter().enumerate() {
-                    let (id, _) = item;
-                    if inner.apps[id].status == TaskStatus::Ready {
-                        task_id = Some(id);
-                        break;
-                    }
-                }
+        //inner.apps[..self.app_num].into_iter().for_each(|x| {
+        //    print!("{}: {:?} ", x.id, x.status);
+        //});
+        //println!(" ");
+
+        if inner.apps[..self.app_num]
+            .into_iter()
+            .filter(|x| x.status == TaskStatus::Ready)
+            .count()
+            == 0
+        {
+            panic!("All applications were finished!")
+        }
+
+        for i in 0..self.app_num {
+            if inner.apps[(index + i) % self.app_num].status == TaskStatus::Ready {
+                task_id = (index + i) % self.app_num;
+                break;
             }
         }
 
-        if let Some(id) = task_id {
-            if id != index {
-                inner.apps[index].status = TaskStatus::Exit;
-            }
-            inner.apps[id].status = TaskStatus::Running;
-            drop(inner);
-            info!("run app by id, {}", id);
-            self.run_app_by_id(id);
-        } else {
-            drop(inner);
-        }
-        panic!("All applications was finished!");
+        inner.cur_app = task_id;
+        inner.apps[task_id].status = TaskStatus::Running;
+        drop(inner);
+        info!("run app by id, {}", task_id);
+        self.run_app_by_id(task_id);
+        panic!("Unreachable in run_next_app");
     }
 }
 
