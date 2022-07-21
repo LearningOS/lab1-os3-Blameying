@@ -63,11 +63,16 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
+    unsafe {
+        (*ti).status = get_task_manager().get_task_status();
+        (*ti).time = get_task_manager().get_task_time();
+        get_task_manager().get_syscall_count(&mut (*ti).syscall_times);
+    }
     0
 }
 
 pub fn syscall(syscall_id: usize, args: [usize; 3], ctx: usize) -> isize {
-    info!("SYSCALL: {}", syscall_id);
+    get_task_manager().syscall_count(syscall_id);
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),

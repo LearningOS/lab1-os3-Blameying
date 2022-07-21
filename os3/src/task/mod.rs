@@ -1,6 +1,7 @@
 use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 
@@ -17,8 +18,7 @@ pub enum TaskStatus {
 pub struct TaskContext {
     pub id: usize,
     pub context: usize,
-    pub size: usize,
-    pub sepc: usize,
+    pub time: usize,
     pub status: TaskStatus,
     pub syscall_times: [u32; MAX_SYSCALL_NUM],
 }
@@ -52,6 +52,36 @@ impl TaskManager {
         let cur_app = inner.cur_app;
         drop(inner);
         cur_app
+    }
+
+    pub fn syscall_count(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur_app = inner.cur_app;
+        inner.apps[cur_app].syscall_times[syscall_id] += 1;
+        drop(inner);
+    }
+
+    pub fn get_task_status(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        let cur_app = inner.cur_app;
+        let status = inner.apps[cur_app].status;
+        drop(inner);
+        status
+    }
+
+    pub fn get_task_time(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        let cur_app = inner.cur_app;
+        let time = inner.apps[cur_app].time;
+        drop(inner);
+        get_time_us() - time
+    }
+
+    pub fn get_syscall_count(&self, data: &mut [u32; MAX_SYSCALL_NUM]) {
+        let inner = self.inner.exclusive_access();
+        let cur_app = inner.cur_app;
+        data.copy_from_slice(&inner.apps[cur_app].syscall_times);
+        drop(inner);
     }
 
     pub fn run_app_by_id(&self, id: usize) {
@@ -117,6 +147,9 @@ impl TaskManager {
         }
 
         inner.cur_app = task_id;
+        if inner.apps[task_id].time == 0 {
+            inner.apps[task_id].time = get_time_us();
+        }
         inner.apps[task_id].status = TaskStatus::Running;
         drop(inner);
         info!("run app by id, {}", task_id);
@@ -133,8 +166,7 @@ lazy_static! {
             apps: [TaskContext {
                 id: 0,
                 context: 0,
-                size: 0,
-                sepc: 0,
+                time: 0,
                 status: TaskStatus::UInited,
                 syscall_times: [0; MAX_SYSCALL_NUM],
             }; MAX_APP_NUM],
