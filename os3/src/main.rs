@@ -3,6 +3,8 @@
 #![feature(panic_info_message)]
 #![feature(alloc_error_handler)]
 
+use crate::task::get_task_manager;
+
 #[macro_use]
 extern crate log;
 
@@ -46,6 +48,6 @@ pub fn rust_main() -> ! {
     loader::load_apps();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
-    task::run_first_task();
+    get_task_manager().run_next_app();
     panic!("Unreachable in rust_main!");
 }
