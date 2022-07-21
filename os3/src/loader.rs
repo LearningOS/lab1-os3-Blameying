@@ -1,4 +1,5 @@
 use crate::config::*;
+use crate::task::get_task_manager;
 use crate::trap::TrapContext;
 
 #[repr(align(4096))]
@@ -75,6 +76,7 @@ pub fn load_apps() {
         let dst = unsafe { core::slice::from_raw_parts_mut(base_i as *mut u8, src.len()) };
         dst.copy_from_slice(src);
     }
+    get_task_manager().init();
 }
 
 pub fn init_app_cx(app_id: usize) -> usize {
